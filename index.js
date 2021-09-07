@@ -1,15 +1,13 @@
 // t.me/BotTinyBot
 
-// for the bits
+require('dotenv').config();
+const axios = require('axios'); // for api connection
+const dns = require("dns"); // for ip address
+
+// for the bot
 const TelegramBot = require('node-telegram-bot-api');
-const token = '1919728300:AAEBZGnwdA7JhJFX7Os5ECa_bF63eMXDQy4';
+const token = process.env.TOKEN;
 const bot = new TelegramBot(token, {polling: true});
-
-// for api connection
-const axios = require('axios'); 
-
-// require dns module
-const dns = require("dns");
 
 // for database connection
 const { createPool } = require("mysql")
@@ -30,19 +28,20 @@ bot.onText(/\/view_notes/, (msg) => {
 
         let returnData = ""
         for (let i in res){
-            returnData = returnData + (parseInt(i) + 1) + "." + res[i]["message"] + "\n"
+            let index = (parseInt(i) + 1);
+            let message = res[i].message;
+            returnData = `${returnData} ${index}. ${message} \n`
         }
-        // console.log(msg.chat.id)
-        // console.log(returnData);
         bot.sendMessage(msg.chat.id,returnData.toString("utf-8"));
     })
 });
 
+// save notes
 bot.onText(/\/save_notes/, function(msg, match){
 
-    data = match.input.slice(12);
+    const data = match.input.slice(12);
 
-    pool.query("INSERT into message(message)values('" + data + "')", (err, res) =>{
+    pool.query(`INSERT into message(message)values('${data}')`, (err, res) =>{
         if(err){
             console.log("Error in connecting Db");
         }
@@ -50,37 +49,39 @@ bot.onText(/\/save_notes/, function(msg, match){
     })
 });
 
-function getWeather(city) {
-    return axios.get('https://api.openweathermap.org/data/2.5/weather?q=' + city +'&units=metric&APPID=d53806eacf1df5043b9ed5484ba9f5a6');
+// arrow functions for weather
+const getWeather = (city) => { 
+    const appID = process.env.APIID;
+    return axios.get(`https://api.openweathermap.org/data/2.5/weather?q=${city}&units=metric&APPID=${appID}`);
 }
 
-
+// weather
 bot.onText(/\/weather/, async function(msg, match){
-    city = match.input.slice(9);
+    const city = match.input.slice(9);
 
     try{
-        let weather_data = await getWeather(city);
-        weather_data = weather_data["data"]
+        // destructuring
+        const {data} = await getWeather(city);
 
-        let city_name = weather_data["name"];
-        let weather = weather_data["weather"][0]["main"];
-        let description = weather_data["weather"][0]["description"]
-        let temperature = weather_data["main"]["temp"];
-        let humidity = weather_data["main"]["humidity"];
-        let pressure = weather_data["main"]["pressure"];
-        // let rise = weather_data["sys"]["sunrise"].toLocaleTimeString();
-        // let set = weather_data["sys"]["sunset"];
-        let regionNames = new Intl.DisplayNames(['en'], {type: 'region'});regionNames.of('US');  // "United States"
-        let country = regionNames.of(weather_data["sys"]["country"]);
+        const cityName = data.name;
+        const weather = data.weather[0].main;
+        const description = data.weather[0].description
+        const temperature = String(data.main.temp);
+        const humidity = data.main.humidity;
+        const pressure = String(data.main.pressure);
+
+        const regionNames = new Intl.DisplayNames(['en'], {type: 'region'});regionNames.of('US');  // "United States"
+        const country = regionNames.of(data.sys.country);
 
         bot.sendMessage(msg.chat.id, 
-                        '**** ' + city_name + ' **** '+
-                        '\nTemperature: ' + String(temperature) + 
-                        '°C\nHumidity: ' +humidity + 
-                        ' %\nWeather: '+ weather +
-                        '\nDescription:' + description +
-                        '\nPressure: ' + String(pressure) + 
-                        '\nCountry: ' + country)
+        `****** ${cityName} ******
+Temperature: ${temperature}°C
+Humidity: ${humidity}%
+Weather:${weather}       
+Description:${description}       
+Pressure: ${pressure}        
+Country: ${country}
+        `)
 
     }catch(error){
         bot.sendMessage(msg.chat.id,"Unable to check the weather");
@@ -90,10 +91,8 @@ bot.onText(/\/weather/, async function(msg, match){
 
 // getting ip address
 bot.onText(/\/ipv4/,function(msg, match){
-    website = match.input.slice(6);
 
-    // website URL
-    const url = website;
+    const url = match.input.slice(6);
 
     // get the IPv4 address
     dns.resolve4(url, (err, addresses) => {
@@ -107,13 +106,14 @@ bot.onText(/\/ipv4/,function(msg, match){
     });
 })
 
+// instructions
 bot.onText(/\/start/,function(msg, match){
     bot.sendMessage(msg.chat.id,`The command available for tinybots:
-                                1. /weather <city name>
-                                2. /ipv4 <website>
-                                3. /save_note <message>
-                                4. /view_notes
+1. /weather <city name>
+2. /ipv4 <website>
+3. /save_notes <message>
+4. /view_notes
 
-    * Small suggestion: 
-    - the website be in the format of www.xxx.com`);
+* Small suggestion: 
+- the website be in the format of www.xxx.com`);
 })
